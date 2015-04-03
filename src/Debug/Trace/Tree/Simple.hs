@@ -36,9 +36,11 @@ pattern Leaf v = Node v (Assoc [])
 -------------------------------------------------------------------------------}
 
 instance JSON SimpleTree where
+  showJSON (Leaf v   ) = String   v
   showJSON (Node v ts) = JsonTree v $ fmap showJSON ts
   showJSON _ = error "inaccessible"
 
+  readJSON (String   v)    = return $ Leaf v
   readJSON (JsonTree v ts) = Node v <$> traverse readJSON ts
   readJSON _ = fail "Invalid JSON"
 
@@ -53,6 +55,11 @@ pattern JsonTree v ts <- SingletonObject v (Object (Assoc -> ts))
 
 pattern SingletonObject :: String -> JSValue -> JSValue
 pattern SingletonObject k v = Object [(k, v)]
+
+pattern String :: String -> JSValue
+pattern String str <- JSString (fromJSString -> str)
+  where
+    String str = JSString (toJSString str)
 
 pattern Object :: [(String, JSValue)] -> JSValue
 pattern Object obj <- JSObject (fromJSObject -> obj)
