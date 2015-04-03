@@ -1,0 +1,33 @@
+name:                tracetree
+version:             0.1.0.0
+synopsis:            Visualize Haskell data structures as trees
+-- description:
+license:             BSD3
+license-file:        LICENSE
+author:              Edsko de Vries
+maintainer:          edsko@well-typed.com
+copyright:           Copyright 2015 Well-Typed LLP
+category:            Development
+build-type:          Simple
+-- extra-source-files:
+cabal-version:       >=1.10
+
+library
+  exposed-modules:     Debug.Trace.Tree
+                       Debug.Trace.Tree.Edged
+                       Debug.Trace.Tree.Simple
+                       Debug.Trace.Tree.Assoc
+  -- other-modules:
+  -- We need ghc 7.10, but I don't know how to specify that other through
+  -- the version of base
+  build-depends:       base         >= 4.8 && < 5,
+                       bifunctors   >= 4.2 && < 4.3,
+                       json         >= 0.9 && < 0.10,
+                       transformers >= 0.4 && < 0.5
+  hs-source-dirs:      src
+  default-language:    Haskell2010
+  ghc-options:         -Wall
+  default-extensions:  PatternSynonyms
+                       TupleSections
+                       ViewPatterns
+  -- other-extensions:
