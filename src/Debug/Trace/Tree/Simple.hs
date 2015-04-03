@@ -1,33 +1,45 @@
+-- | Simple trees (edged trees with strings everywhere)
+--
+-- Intended to be double imported:
+--
+-- > import Debug.Trace.Tree.Simple
+-- > import qualified Debug.Trace.Tree.Simple as Simple
 module Debug.Trace.Tree.Simple (
     SimpleTree
   , simpleETree
-  , pattern SNode
+  , pattern Node
+  , pattern Leaf
   ) where
 
 import Text.JSON
-import Debug.Trace.Tree.Edged
+import Debug.Trace.Tree.Edged (ETree)
 import Debug.Trace.Tree.Assoc
+import qualified Debug.Trace.Tree.Edged as Edged
 
 {-------------------------------------------------------------------------------
   Trees containing only strings
 -------------------------------------------------------------------------------}
 
 newtype SimpleTree = SimpleTree { simpleETree :: ETree String String }
+  deriving (Show, Eq)
 
-pattern SNode :: String -> Assoc String SimpleTree -> SimpleTree
-pattern SNode v ts <- SimpleTree (ENode v (fmap SimpleTree -> ts))
+pattern Node :: String -> Assoc String SimpleTree -> SimpleTree
+pattern Node v ts <- SimpleTree (Edged.Node v (fmap SimpleTree -> ts))
   where
-    SNode v ts = SimpleTree (ENode v (fmap simpleETree ts))
+    Node v ts = SimpleTree (Edged.Node v (fmap simpleETree ts))
+
+pattern Leaf :: String -> SimpleTree
+pattern Leaf v = Node v (Assoc [])
 
 {-------------------------------------------------------------------------------
   Serialization to and from JSON
 -------------------------------------------------------------------------------}
 
 instance JSON SimpleTree where
-  showJSON (SNode v ts) = JsonTree v $ fmap showJSON ts
+  showJSON (Node v ts) = JsonTree v $ fmap showJSON ts
   showJSON _ = error "inaccessible"
 
-  readJSON (JsonTree v ts) = SNode v <$> traverse readJSON ts
+  readJSON (JsonTree v ts) = Node v <$> traverse readJSON ts
   readJSON _ = fail "Invalid JSON"
 
 {-------------------------------------------------------------------------------
