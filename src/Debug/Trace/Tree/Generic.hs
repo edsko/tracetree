@@ -4,7 +4,11 @@ module Debug.Trace.Tree.Generic (
   ) where
 
 import Control.Monad.State
+import Data.Bifunctor
+import Data.Map (Map)
 import GHC.Generics
+import qualified Data.Map as Map
+
 import Debug.Trace.Tree.Assoc
 import Debug.Trace.Tree.Simple
 
@@ -24,6 +28,20 @@ instance (GSimpleTree a, GSimpleTree b, GSimpleTree c) => GSimpleTree (a, b, c)
 
 instance GSimpleTree Char where fromGeneric = Leaf . show
 instance GSimpleTree Int  where fromGeneric = Leaf . show
+
+-- For map we do something special, and create edges for each key in the map
+instance GSimpleTree a => GSimpleTree (Map String a) where
+  fromGeneric = Node "Map" . Assoc . map (second fromGeneric) . Map.toList
+
+-- Similarly, for lists we create numbered edges
+instance {-# OVERLAPPABLE #-} GSimpleTree a => GSimpleTree [a] where
+  fromGeneric xs = Node "[]" $ Assoc [ (show i, fromGeneric x)
+                                     | i <- [0..] :: [Int]
+                                     | x <- xs
+                                     ]
+
+instance GSimpleTree String where
+  fromGeneric = Leaf
 
 {-------------------------------------------------------------------------------
   Top-level generic translation

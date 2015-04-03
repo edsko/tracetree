@@ -1,6 +1,6 @@
 name:                tracetree
 version:             0.1.0.0
-synopsis:            Visualize Haskell data structures as trees
+synopsis:            Visualize Haskell data structures as edge-labeled trees
 -- description:
 license:             BSD3
 license-file:        LICENSE
@@ -12,16 +12,22 @@ build-type:          Simple
 -- extra-source-files:
 cabal-version:       >=1.10
 
+flag ttrender
+  description: Build executable to render the trees (requires Cairo)
+  default: False
+
 library
   exposed-modules:     Debug.Trace.Tree
-                       Debug.Trace.Tree.Edged
-                       Debug.Trace.Tree.Simple
                        Debug.Trace.Tree.Assoc
+                       Debug.Trace.Tree.Edged
                        Debug.Trace.Tree.Generic
+                       Debug.Trace.Tree.Rose
+                       Debug.Trace.Tree.Simple
   -- We need ghc 7.10, but I don't know how to specify that other through
   -- the version of base
   build-depends:       base         >= 4.8 && < 5,
                        bifunctors   >= 4.2 && < 4.3,
+                       containers   >= 0.5 && < 0.6,
                        json         >= 0.9 && < 0.10,
                        mtl          >= 2.2 && < 2.3,
                        transformers >= 0.4 && < 0.5
@@ -33,8 +39,46 @@ library
                        FlexibleInstances
                        NoMonomorphismRestriction
                        PatternSynonyms
+                       ParallelListComp
+                       RankNTypes
                        ScopedTypeVariables
                        TupleSections
                        TypeOperators
                        ViewPatterns
   -- other-extensions:
+
+executable ttrender
+  main-is:             Main.hs
+  other-modules:       Debug.Trace.Tree.Render.Edged
+                       Debug.Trace.Tree.Render.Options
+                       Debug.Trace.Tree.Render.Simple
+
+  if flag(ttrender)
+    build-depends:     base                 >= 4.8  && < 5,
+                       colour               >= 2.3  && < 2.4,
+                       json                 >= 0.9  && < 0.10,
+                       optparse-applicative >= 0.11 && < 0.12,
+                       -- haven't specified version ranges for diagrams yet
+                       -- because the official releases on Hackage don't yet
+                       -- support 7.10 and I don't know if they will bumb the
+                       -- version numbers once they release
+                       diagrams-cairo,
+                       diagrams-lib,
+                       diagrams-contrib,
+                       SVGFonts,
+                       -- whatever version we use above
+                       tracetree
+  else
+    buildable:         False
+
+  hs-source-dirs:      ttrender
+  default-language:    Haskell2010
+  default-extensions:  FlexibleContexts
+                       NoMonomorphismRestriction
+                       PatternSynonyms
+                       RecordWildCards
+                       ScopedTypeVariables
+                       TupleSections
+                       TypeFamilies
+                       ViewPatterns
+  ghc-options:         -Wall
