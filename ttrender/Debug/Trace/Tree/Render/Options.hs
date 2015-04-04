@@ -17,6 +17,7 @@ import qualified Debug.Trace.Tree.Simple as Simple
 data RenderOptions = RenderOptions {
     renderMaxBreadths :: [Int]
   , renderMerge       :: [String]
+  , renderVertical    :: [String]
   , renderColours     :: [(String, Colour Double)]
   , renderMaxNotShown :: Int
   , renderInput       :: FilePath
@@ -34,6 +35,11 @@ instance Parseable RenderOptions where
             long "merge"
           , metavar "C"
           , help "Collapse any tree of shape (C' .. (C args) ..) to (C' .. args ..). Can be used multiple times."
+          ]))
+    <*> ( many (strOption $ mconcat [
+            long "vertical"
+          , metavar "REGEXP"
+          , help "Show any node matching the specified regular expression vertically. Can be used multiple times."
           ]))
     <*> ( many (option readColourAssignment $ mconcat [
             long "colour"

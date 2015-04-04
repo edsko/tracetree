@@ -4,6 +4,7 @@ module Debug.Trace.Tree.Render.Simple (renderTree) where
 import Diagrams.Prelude
 import Diagrams.Backend.Cairo (B)
 import Graphics.SVGFonts
+import Text.Regex.Posix ((=~))
 
 import Debug.Trace.Tree.Simple
 import Debug.Trace.Tree.Render.Options
@@ -15,10 +16,17 @@ renderTree options =
     . applyOptions options
 
 drawNode :: RenderOptions -> Maybe String -> Diagram B
-drawNode RenderOptions{..} = go
+drawNode RenderOptions{..} node =
+      maybeVertical node
+    $ makeBox node
   where
-    go (Just str) = box str (lookup str renderColours)
-    go Nothing    = mempty
+    makeBox (Just str) = box str (lookup str renderColours)
+    makeBox Nothing    = mempty
+
+    maybeVertical Nothing    = id
+    maybeVertical (Just str) = if any (\regexp -> str =~ regexp) renderVertical
+                                 then rotateBy (1/4)
+                                 else id
 
 drawEdgeLabel :: Maybe String -> Maybe String -> String -> (Diagram B, ArrowOpts Double)
 drawEdgeLabel _ Nothing str = (

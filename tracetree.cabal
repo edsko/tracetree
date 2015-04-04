@@ -58,6 +58,7 @@ executable ttrender
                        colour               >= 2.3  && < 2.4,
                        json                 >= 0.9  && < 0.10,
                        optparse-applicative >= 0.11 && < 0.12,
+                       regex-posix          >= 0.95 && < 0.96,
                        -- haven't specified version ranges for diagrams yet
                        -- because the official releases on Hackage don't yet
                        -- support 7.10 and I don't know if they will bumb the
