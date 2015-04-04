@@ -32,7 +32,7 @@ drawEdgeLabel _ (Just _) str = (
   )
 
 arrOpts :: ArrowOpts Double
-arrOpts = with & headLength .~ normalized 0.02
+arrOpts = with & headLength .~ normalized 0.008
                & shaftStyle %~ lw (normalized 0.001) . lc grey
 
 textOpts :: Double -> TextOpts Double
