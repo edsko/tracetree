@@ -15,11 +15,11 @@ import qualified Debug.Trace.Tree.Edged  as Edged
 import qualified Debug.Trace.Tree.Simple as Simple
 
 data RenderOptions = RenderOptions {
-    renderMaxBreadths        :: [Int]
-  , renderCollapseSingletons :: Bool
-  , renderColours            :: [(String, Colour Double)]
-  , renderMaxNotShown        :: Int
-  , renderInput              :: FilePath
+    renderMaxBreadths :: [Int]
+  , renderMerge       :: [String]
+  , renderColours     :: [(String, Colour Double)]
+  , renderMaxNotShown :: Int
+  , renderInput       :: FilePath
   }
 
 instance Parseable RenderOptions where
@@ -30,10 +30,11 @@ instance Parseable RenderOptions where
           , value []
           , help "Limit the breath at each level. For example, --max-breadths '[2,1]' means there will be at most 2 nodes at level 1, at most 1 nodes at level 2, and the remaining levels are unrestricted."
           ])
-    <*> ( switch $ mconcat [
-            long "collapse-singletons"
-          , help "Collapse any tree of the form (C (C' args)) to (C args)"
-          ])
+    <*> ( many (strOption $ mconcat [
+            long "merge"
+          , metavar "C"
+          , help "Collapse any tree of shape (C' .. (C args) ..) to (C' .. args ..). Can be used multiple times."
+          ]))
     <*> ( many (option readColourAssignment $ mconcat [
             long "colour"
           , help "Set the colour for a node. For example --colour P=red sets the background of all P nodes to be red. Can be used multiple times."
@@ -59,16 +60,17 @@ applyOptions RenderOptions{..} =
       applyMaxNotShown renderMaxNotShown
     . Edged.limitBreath renderMaxBreadths
     . simpleETree
-    . (if renderCollapseSingletons then collapseSingletons else id)
+    . applyMerge renderMerge
 
-collapseSingletons :: SimpleTree -> SimpleTree
-collapseSingletons (Simple.Node c (Assoc [("0", t)])) =
-    let Simple.Node _c' ts = collapseSingletons t
-    in Simple.Node c ts
-collapseSingletons (Simple.Node c ts) =
-    Simple.Node c (fmap collapseSingletons ts)
-collapseSingletons _ =
-    error "inaccessible"
+applyMerge :: [String] -> SimpleTree -> SimpleTree
+applyMerge toMerge (Simple.Node c' (Assoc ts)) =
+    Simple.Node c' . fmap (applyMerge toMerge) . Assoc $ concatMap aux ts
+  where
+    aux t@(_, Simple.Node c (Assoc ts'))
+      | c `elem` toMerge = ts'
+      | otherwise        = [t]
+    aux _ = error "inaccessible"
+applyMerge _ _ = error "inaccessible"
 
 applyMaxNotShown :: Int -> ETree String (Maybe String) -> ETree String (Maybe String)
 applyMaxNotShown n (Edged.Node c (Assoc ts)) =
