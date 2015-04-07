@@ -2,6 +2,7 @@
 module Debug.Trace.Tree.Rose (
     markSpine
   , markFirstChild
+  , markDepth
   , numberLevels
   ) where
 
@@ -28,9 +29,16 @@ markFirstChild = go True
     go isFirst (Node a ts) = Node (a, isFirst)
                            $ map (uncurry go) $ zip (True : repeat False) ts
 
+-- | Mark each node with its depth in the tree
+markDepth :: Tree a -> Tree (a, Int)
+markDepth = go 0
+  where
+    go :: Int -> Tree a -> Tree (a, Int)
+    go d (Node a ts) = Node (a, d) $ map (go (d + 1)) ts
+
 -- | Level numbering
 --
--- Like breath-first numbering, but reset the counter at each level, i.e. given
+-- Like breadth-first numbering, but reset the counter at each level, i.e. given
 --
 -- >     A
 -- >    / \
@@ -41,18 +49,44 @@ markFirstChild = go True
 -- return
 --
 -- >       (A,0)
---          / \
+-- >        / \
 -- >    (B,0)  (C,1)
 -- >     / \      \
 -- > (D,0)  (E,1)  (F,2)
-numberLevels :: Tree a -> Tree (a, Int)
-numberLevels t = evalState (unfoldTreeM_BF unTree (markSpine t)) undefined
+--
+-- Similarly,
+--
+-- >   A
+-- >  / \
+-- > B   C
+-- >    / \
+-- >   D   E
+--
+-- becomes
+--
+-- >    (A,0)
+-- >     / \
+-- > (B,0) (C,1)
+-- >       /   \
+-- >   (D,0)   (E,1)
+--
+-- (note that in this second example, D gets number 0 because it's the first
+-- node at this level; it's therefore not the case that the nodes with number 0
+-- necessarily make up the _spine_ of the tree.)
+numberLevels :: forall a. Tree a -> Tree (a, Int)
+numberLevels t = evalState (unfoldTreeM_BF unTree (markDepth t)) (0, 0)
   where
-    unTree :: MonadState Int m => Tree (a, Bool) -> m ((a, Int), [Tree (a, Bool)])
-    unTree (Node (a, isSpine) ts) = do
-      when isSpine $ put 0
-      i <- state $ \i -> (i, i + 1)
+    unTree :: MonadState (Depth, Index) m
+           => Tree (a, Depth) -> m ((a, Index), [Tree (a, Depth)])
+    unTree (Node (a, depth) ts) = do
+      i <- state $ \(curDepth, curIdx) ->
+             if depth > curDepth
+               then (0, (depth, 1))
+               else (curIdx, (curDepth, curIdx + 1))
       return ((a, i), ts)
+
+type Depth = Int
+type Index = Int
 
 {-------------------------------------------------------------------------------
   Debugging
@@ -64,5 +98,14 @@ _testTree =
                       , Node "e" []
                       ]
            , Node "c" [ Node "f" []
+                      ]
+           ]
+
+-- Tree with deeper nodes on the right than on the left
+_testTree2 :: Tree String
+_testTree2 =
+  Node "a" [ Node "b" []
+           , Node "c" [ Node "d" []
+                      , Node "e" []
                       ]
            ]

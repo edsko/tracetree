@@ -41,6 +41,7 @@ library
                        PatternSynonyms
                        ParallelListComp
                        RankNTypes
+                       RecordWildCards
                        ScopedTypeVariables
                        TupleSections
                        TypeOperators
