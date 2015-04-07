@@ -7,6 +7,7 @@ import Diagrams.Prelude
 import Diagrams.TwoD.Layout.Tree hiding (renderTree)
 
 import Debug.Trace.Tree.Edged
+import Debug.Trace.Tree.Render.Constants
 
 {-------------------------------------------------------------------------------
   Main rendering algorithm
@@ -45,6 +46,8 @@ renderTree drK drV t =
     symmOpts :: SymmLayoutOpts Double ((Diagram B, ArrowOpts Double), (Diagram B, Int))
     symmOpts = with & slWidth  .~ computeWidth
                     & slHeight .~ computeHeight
+                    & slHSep   .~ constTreeHSep
+                    & slVSep   .~ constTreeVSep
       where
         -- We don't know where the label will be placed. In the worst case,
         -- the label is positioned to start or end precisely at the center
@@ -84,8 +87,8 @@ connectLabelled opts edgeLabel labelOnLeft n1 n2 = Arrows $
         e' = fromMaybe (location b2) $ traceP midpoint v b2
         lbl = edgeLabel
             # (if labelOnLeft
-                 then translateX (-0.5) . alignR
-                 else translateX   0.5  . alignL
+                 then translateX (negate constEdgePadding) . alignR
+                 else translateX         constEdgePadding  . alignL
               )
             # moveTo midpoint
     in
