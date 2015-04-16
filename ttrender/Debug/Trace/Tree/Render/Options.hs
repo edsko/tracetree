@@ -1,6 +1,7 @@
 -- | Render simple trees
 module Debug.Trace.Tree.Render.Options (RenderOptions(..), applyOptions) where
 
+import Data.Bifunctor
 import Data.Colour (Colour)
 import Data.Colour.Names (readColourName)
 import Data.List (partition)
@@ -15,12 +16,13 @@ import qualified Debug.Trace.Tree.Edged  as Edged
 import qualified Debug.Trace.Tree.Simple as Simple
 
 data RenderOptions = RenderOptions {
-    renderMaxBreadths :: [Int]
-  , renderMerge       :: [String]
-  , renderVertical    :: [String]
-  , renderColours     :: [(String, Colour Double)]
-  , renderMaxNotShown :: Int
-  , renderInput       :: FilePath
+    renderMaxBreadths  :: [Int]
+  , renderMerge        :: [String]
+  , renderVertical     :: [String]
+  , renderColours      :: [(String, Colour Double)]
+  , renderMaxNotShown  :: Int
+  , renderHideChildren :: [String]
+  , renderInput        :: FilePath
   }
 
 instance Parseable RenderOptions where
@@ -52,6 +54,10 @@ instance Parseable RenderOptions where
            , showDefault
            , help "Maximum number of edges to hidden nodes (use together with --max-breadths)"
            ])
+    <*> ( many (strOption $ mconcat [
+             long "hide-children"
+           , help "Hide the children of the specified node. Can be used multiple times."
+           ]))
     <*> ( argument str (metavar "JSON") )
 
 readColourAssignment :: ReadM (String, Colour Double)
@@ -67,6 +73,7 @@ applyOptions RenderOptions{..} =
     . Edged.limitBreath renderMaxBreadths
     . simpleETree
     . applyMerge renderMerge
+    . applyHideChildren renderHideChildren
 
 applyMerge :: [String] -> SimpleTree -> SimpleTree
 applyMerge toMerge (Simple.Node c' (Assoc ts)) =
@@ -77,6 +84,14 @@ applyMerge toMerge (Simple.Node c' (Assoc ts)) =
       | otherwise        = [t]
     aux _ = error "inaccessible"
 applyMerge _ _ = error "inaccessible"
+
+applyHideChildren :: [String] -> SimpleTree -> SimpleTree
+applyHideChildren toHide = go
+  where
+    go (Simple.Node c (Assoc ts))
+      | c `elem` toHide = Simple.Node c (Assoc [])
+      | otherwise       = Simple.Node c (Assoc (map (second go) ts))
+    go _ = error "inaccessible"
 
 applyMaxNotShown :: Int -> ETree String (Maybe String) -> ETree String (Maybe String)
 applyMaxNotShown n (Edged.Node c (Assoc ts)) =
