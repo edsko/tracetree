@@ -13,8 +13,8 @@ import Debug.Trace.Tree.Render.Constants
 import qualified Debug.Trace.Tree.Render.Edged as Edged
 
 renderTree :: RenderOptions -> SimpleTree -> Diagram B
-renderTree options =
-      Edged.renderTree drawEdgeLabel (drawNode options)
+renderTree options@RenderOptions{..} =
+      Edged.renderTree drawEdgeLabel (drawNode options) renderShowCoords
     . applyOptions options
 
 drawNode :: RenderOptions -> Maybe String -> Diagram B

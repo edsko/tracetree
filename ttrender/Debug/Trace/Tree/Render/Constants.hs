@@ -16,6 +16,10 @@ constNodeLabelHeight, constEdgeLabelHeight :: Double
 constNodeLabelHeight = 25
 constEdgeLabelHeight = 10
 
+-- | Text height when overlaying coordinates
+constCoordsOverlay :: Double
+constCoordsOverlay = 35
+
 -- | Length of the dashes to missing nodes
 constMissingNodeDash :: Double
 constMissingNodeDash = 5

@@ -1,38 +1,39 @@
 -- | Render simple trees
+{-# OPTIONS_GHC -fno-warn-unused-do-bind #-}
 module Debug.Trace.Tree.Render.Options (RenderOptions(..), applyOptions) where
 
 import Data.Bifunctor
 import Data.Colour (Colour)
 import Data.Colour.Names (readColourName)
-import Data.List (partition)
-import Data.Maybe (isJust)
 import Diagrams.Backend.CmdLine (Parseable(..))
 import Options.Applicative
+import qualified Text.Parsec        as Parsec
+import qualified Text.Parsec.String as Parsec
 
 import Debug.Trace.Tree.Simple (SimpleTree, simpleETree)
-import Debug.Trace.Tree.Edged (ETree)
+import Debug.Trace.Tree.Edged (ETree, Hide(..))
 import Debug.Trace.Tree.Assoc (Assoc(..))
 import qualified Debug.Trace.Tree.Edged  as Edged
 import qualified Debug.Trace.Tree.Simple as Simple
 
 data RenderOptions = RenderOptions {
-    renderMaxBreadths  :: [Int]
+    renderHideNodes    :: [Hide]
   , renderMerge        :: [String]
   , renderVertical     :: [String]
   , renderColours      :: [(String, Colour Double)]
   , renderMaxNotShown  :: Int
   , renderDelChildren  :: [String]
+  , renderShowCoords   :: Bool
   , renderInput        :: FilePath
   }
 
 instance Parseable RenderOptions where
   parser = RenderOptions
-    <$> ( option auto $ mconcat [
-            long "max-breadths"
-          , metavar "[Int]"
-          , value []
-          , help "Limit the breath at each level. For example, --max-breadths '[2,1]' means there will be at most 2 nodes at level 1, at most 1 nodes at level 2, and the remaining levels are unrestricted."
-          ])
+    <$> ( many (option readHide $ mconcat [
+            long "hide"
+          , metavar "HIDE"
+          , help "Hide certain nodes in the tree; arrows to these nodes are shown as dangling (modulo the max-not-shown option). Valid syntax for the argument is: \"node(y,x)\": Hide the node at the specified level. Can be used multiple times."
+          ]))
     <*> ( many (strOption $ mconcat [
             long "merge"
           , metavar "C"
@@ -58,7 +59,18 @@ instance Parseable RenderOptions where
              long "delete-children"
            , help "Delete the children of the specified node. This actually removes the children from the tree, no dangling arrows are shown. Can be used multiple times."
            ]))
+    <*> ( switch $ mconcat [
+             long "show-coords"
+           , help "Superimpose node coordinates when rendering the tree. Useful when figuring out which arguments to pass to --hide."
+           ])
     <*> ( argument str (metavar "JSON") )
+
+readHide :: ReadM Hide
+readHide = do
+    arg <- str
+    case Parsec.parse parseHide "HIDE" arg of
+      Left  err  -> fail (show err)
+      Right hide -> return hide
 
 readColourAssignment :: ReadM (String, Colour Double)
 readColourAssignment = do
@@ -67,10 +79,11 @@ readColourAssignment = do
       (constr, '=':colour) -> (constr,) <$> readColourName colour
       _ -> fail "Invalid colour assignment"
 
-applyOptions :: RenderOptions -> SimpleTree -> ETree String (Maybe String)
+applyOptions :: RenderOptions -> SimpleTree -> ETree String (Maybe String, (Int, Int))
 applyOptions RenderOptions{..} =
       applyMaxNotShown renderMaxNotShown
-    . Edged.limitBreath renderMaxBreadths
+    . Edged.hideNodes renderHideNodes
+    . Edged.markCoords
     . simpleETree
     . applyMerge renderMerge
     . applyDelChildren renderDelChildren
@@ -93,7 +106,9 @@ applyDelChildren toHide = go
       | otherwise       = Simple.Node c (Assoc (map (second go) ts))
     go _ = error "inaccessible"
 
-applyMaxNotShown :: Int -> ETree String (Maybe String) -> ETree String (Maybe String)
+applyMaxNotShown :: Int -> ETree String (Maybe String, (Int, Int)) -> ETree String (Maybe String, (Int, Int))
+applyMaxNotShown _ = id -- TODO: make work again now that we introduced --hide
+{-
 applyMaxNotShown n (Edged.Node c (Assoc ts)) =
     let (shown, notShown) = partition (isShown . snd) ts
         culled = if length notShown > n
@@ -106,3 +121,20 @@ applyMaxNotShown n (Edged.Node c (Assoc ts)) =
 
     ellipsis :: (String, ETree String (Maybe String))
     ellipsis = ("...", Edged.Node Nothing (Assoc []))
+-}
+
+{-------------------------------------------------------------------------------
+  Parser for Hide
+-------------------------------------------------------------------------------}
+
+parseHide :: Parsec.Parser Hide
+parseHide = parseHideNode
+
+parseHideNode :: Parsec.Parser Hide
+parseHideNode = do
+    Parsec.string "node("
+    y <- Parsec.many1 Parsec.digit
+    Parsec.string ","
+    x <- Parsec.many1 Parsec.digit
+    Parsec.string ")"
+    return $ HideNode (read y) (read x)

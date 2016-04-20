@@ -4,6 +4,7 @@ module Debug.Trace.Tree.Rose (
   , markFirstChild
   , markDepth
   , numberLevels
+  , markCoords
   ) where
 
 import Control.Monad.State
@@ -84,6 +85,15 @@ numberLevels t = evalState (unfoldTreeM_BF unTree (markDepth t)) (0, 0)
                then (0, (depth, 1))
                else (curIdx, (curDepth, curIdx + 1))
       return ((a, i), ts)
+
+-- | Mark each node with its (y, x) coordinates
+--
+-- This is the combination of 'markDepth' and 'numberLevels'
+markCoords :: Tree a -> Tree (a, (Int, Int))
+markCoords = fmap reassoc . numberLevels . markDepth
+  where
+    reassoc :: ((a, Int), Int) -> (a, (Int, Int))
+    reassoc ((a, y), x) = (a, (y, x))
 
 type Depth = Int
 type Index = Int

@@ -5,6 +5,7 @@ import Data.Maybe (fromMaybe)
 import Diagrams.Backend.Cairo (B)
 import Diagrams.Prelude
 import Diagrams.TwoD.Layout.Tree hiding (renderTree)
+import Graphics.SVGFonts
 
 import Debug.Trace.Tree.Edged
 import Debug.Trace.Tree.Render.Constants
@@ -16,11 +17,19 @@ import Debug.Trace.Tree.Render.Constants
 renderTree :: forall k v.
               (v -> v -> k -> (Diagram B, ArrowOpts Double))
            -> (v -> Diagram B)
-           -> ETree k v
+           -> Bool                    -- ^ Show coordinates?
+           -> ETree k (v, (Int, Int)) -- ^ Tree with coordinates marked
            -> Diagram B
-renderTree drK drV t =
+renderTree drK' drV' showCoords t =
     addArrows (arrows positioned) nodes
   where
+    drK :: (v, (Int, Int)) -> (v, (Int, Int)) -> k -> (Diagram B, ArrowOpts Double)
+    drK (v, _) (v', _) k = drK' v v' k
+
+    drV :: (v, (Int, Int)) -> Diagram B
+    drV (v, (y, x)) | showCoords = renderCoords (y, x) <> drV' v
+                    | otherwise  = drV' v
+
     nodes :: Diagram B
     nodes = foldMap fst positioned
 
@@ -65,6 +74,16 @@ renderTree drK drV t =
 -- | Lift standard layout algorithm to edged trees
 symmLayout'' :: SymmLayoutOpts Double (k, v) -> k -> ETree k v -> ETree k (v, P2 Double)
 symmLayout'' opts = liftTree (symmLayout' opts)
+
+-- | Render coordinates
+--
+-- Note that these coordinates are not expected ever in the final diagram; they
+-- are used only during diagram construction. So we don't need to worry too much
+-- about how exactly they look.
+renderCoords :: (Int, Int) -> Diagram B
+renderCoords (y, x) = stroke (textSVG (show (y, x)) constCoordsOverlay)
+                    # fc red
+                    # lw (global 0.5)
 
 {-------------------------------------------------------------------------------
   Diagrams auxiliary: labelled arrows

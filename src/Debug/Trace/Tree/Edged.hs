@@ -10,10 +10,13 @@ module Debug.Trace.Tree.Edged (
   , elems
   , keys
   , mapEdges
+    -- * Hiding nodes
+  , Hide(..)
+  , hideNodes
     -- * Additional operations
-  , limitBreath
   , numberLevels
   , markFirstChild
+  , markCoords
     -- * Interaction between ETree and Tree
   , pushEdges
   , pullEdges
@@ -33,6 +36,7 @@ import qualified Debug.Trace.Tree.Rose as Tree
   Main datatype
 -------------------------------------------------------------------------------}
 
+-- | Tree with nodes labelled with @v@ and arrows labelled with @k@
 data ETree k v = Node v (Assoc k (ETree k v))
   deriving (Show, Eq)
 
@@ -75,6 +79,36 @@ mapEdges f (Node v (Assoc ts)) = Node v (Assoc (map go ts))
   Additional operations
 -------------------------------------------------------------------------------}
 
+-- | Specification of nodes to hide
+data Hide =
+    -- | Hide the node at the specified coordinates
+    HideNode Int Int
+
+instance Show Hide where
+    show (HideNode y x) = "node(" ++ show y ++ "," ++ show x ++ ")"
+
+-- | Check if a certain node should be hidden
+isHidden :: [Hide] -> (Int, Int) -> Bool
+isHidden spec (y, x) = any hides spec
+  where
+    hides :: Hide -> Bool
+    hides (HideNode y' x') = y == y' && x == x'
+
+hideNodes :: forall k v. [Hide] -> ETree k (v, (Int, Int)) -> ETree k (Maybe v, (Int, Int))
+hideNodes spec = go
+  where
+    go :: ETree k (v, (Int, Int)) -> ETree k (Maybe v, (Int, Int))
+    go (Node (v, (y, x)) (Assoc ts))
+      | isHidden spec (y, x) = Node (Nothing, (y, x)) $ Assoc []
+      | otherwise            = Node (Just v,  (y, x)) $ Assoc (map (second go) ts)
+
+  {-
+    go :: v -> (Int, Int) -> Maybe v
+    go v (y, x) | isHidden spec (y, x) = Nothing
+                | otherwise            = Just v
+-}
+
+{-
 -- | Limit the breath of a tree given a list of maximum breaths per level
 limitBreath :: [Int] -> ETree k v -> ETree k (Maybe v)
 limitBreath limits = go (limits ++ repeat maxBound) . numberLevels
@@ -84,6 +118,11 @@ limitBreath limits = go (limits ++ repeat maxBound) . numberLevels
     go (limit:limits') (Node (v, i) (Assoc ts))
       | i >= limit = Node Nothing (Assoc [])
       | otherwise  = Node (Just v) (Assoc (map (second (go limits')) ts))
+-}
+
+-- | Mark each node with its (y, x) coordinate
+markCoords :: ETree k v -> ETree k (v, (Int, Int))
+markCoords = liftTree' Tree.markCoords
 
 numberLevels :: ETree k v -> ETree k (v, Int)
 numberLevels = liftTree' Tree.numberLevels
