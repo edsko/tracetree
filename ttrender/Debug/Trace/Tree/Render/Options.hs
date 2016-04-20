@@ -21,7 +21,7 @@ data RenderOptions = RenderOptions {
   , renderVertical     :: [String]
   , renderColours      :: [(String, Colour Double)]
   , renderMaxNotShown  :: Int
-  , renderHideChildren :: [String]
+  , renderDelChildren  :: [String]
   , renderInput        :: FilePath
   }
 
@@ -55,8 +55,8 @@ instance Parseable RenderOptions where
            , help "Maximum number of edges to hidden nodes (use together with --max-breadths)"
            ])
     <*> ( many (strOption $ mconcat [
-             long "hide-children"
-           , help "Hide the children of the specified node. Can be used multiple times."
+             long "delete-children"
+           , help "Delete the children of the specified node. This actually removes the children from the tree, no dangling arrows are shown. Can be used multiple times."
            ]))
     <*> ( argument str (metavar "JSON") )
 
@@ -73,7 +73,7 @@ applyOptions RenderOptions{..} =
     . Edged.limitBreath renderMaxBreadths
     . simpleETree
     . applyMerge renderMerge
-    . applyHideChildren renderHideChildren
+    . applyDelChildren renderDelChildren
 
 applyMerge :: [String] -> SimpleTree -> SimpleTree
 applyMerge toMerge (Simple.Node c' (Assoc ts)) =
@@ -85,8 +85,8 @@ applyMerge toMerge (Simple.Node c' (Assoc ts)) =
     aux _ = error "inaccessible"
 applyMerge _ _ = error "inaccessible"
 
-applyHideChildren :: [String] -> SimpleTree -> SimpleTree
-applyHideChildren toHide = go
+applyDelChildren :: [String] -> SimpleTree -> SimpleTree
+applyDelChildren toHide = go
   where
     go (Simple.Node c (Assoc ts))
       | c `elem` toHide = Simple.Node c (Assoc [])
