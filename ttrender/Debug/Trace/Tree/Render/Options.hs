@@ -5,13 +5,16 @@ module Debug.Trace.Tree.Render.Options (RenderOptions(..), applyOptions) where
 import Data.Bifunctor
 import Data.Colour (Colour)
 import Data.Colour.Names (readColourName)
+import Data.Maybe (isJust)
+import Data.List (groupBy)
+import Data.Function (on)
 import Diagrams.Backend.CmdLine (Parseable(..))
 import Options.Applicative
 import qualified Text.Parsec        as Parsec
 import qualified Text.Parsec.String as Parsec
 
 import Debug.Trace.Tree.Simple (SimpleTree, simpleETree)
-import Debug.Trace.Tree.Edged (ETree, Hide(..))
+import Debug.Trace.Tree.Edged (ETree, Hide(..), Metadata, Coords(..))
 import Debug.Trace.Tree.Assoc (Assoc(..))
 import qualified Debug.Trace.Tree.Edged  as Edged
 import qualified Debug.Trace.Tree.Simple as Simple
@@ -79,11 +82,11 @@ readColourAssignment = do
       (constr, '=':colour) -> (constr,) <$> readColourName colour
       _ -> fail "Invalid colour assignment"
 
-applyOptions :: RenderOptions -> SimpleTree -> ETree String (Maybe String, (Int, Int))
+applyOptions :: RenderOptions -> SimpleTree -> ETree String (Maybe String, Metadata)
 applyOptions RenderOptions{..} =
       applyMaxNotShown renderMaxNotShown
     . Edged.hideNodes renderHideNodes
-    . Edged.markCoords
+    . Edged.annotate
     . simpleETree
     . applyMerge renderMerge
     . applyDelChildren renderDelChildren
@@ -106,22 +109,28 @@ applyDelChildren toHide = go
       | otherwise       = Simple.Node c (Assoc (map (second go) ts))
     go _ = error "inaccessible"
 
-applyMaxNotShown :: Int -> ETree String (Maybe String, (Int, Int)) -> ETree String (Maybe String, (Int, Int))
-applyMaxNotShown _ = id -- TODO: make work again now that we introduced --hide
-{-
-applyMaxNotShown n (Edged.Node c (Assoc ts)) =
-    let (shown, notShown) = partition (isShown . snd) ts
-        culled = if length notShown > n
-                   then shown ++ take n notShown ++ [ellipsis]
-                   else ts
+applyMaxNotShown :: Int -> ETree String (Maybe String, Metadata) -> ETree String (Maybe String, Metadata)
+applyMaxNotShown n = \(Edged.Node c (Assoc ts)) ->
+    let culled = concatMap aux (groupBy ((==) `on` isShown) ts)
     in Edged.Node c $ fmap (applyMaxNotShown n) (Assoc culled)
   where
-    isShown :: ETree String (Maybe String) -> Bool
-    isShown (Edged.Node c' _) = isJust c'
+    -- Replace each group of hidden nodes with an ellipsis (if larger than n)
+    -- We re-use the node metadata of the first node in the group
+    aux :: [(String, ETree String (Maybe String, Metadata))]
+        -> [(String, ETree String (Maybe String, Metadata))]
+    aux [] = error "impossible: groupBy does not create empty groups"
+    aux ts@(t:_)
+      | not (isShown t) && length ts > n = [ellipsis (rootMeta (snd t))]
+      | otherwise                        = ts
 
-    ellipsis :: (String, ETree String (Maybe String))
-    ellipsis = ("...", Edged.Node Nothing (Assoc []))
--}
+    ellipsis :: Metadata -> (String, ETree String (Maybe String, Metadata))
+    ellipsis meta = ("...", Edged.Node (Nothing, meta) (Assoc []))
+
+    isShown :: (String, ETree String (Maybe String, meta)) -> Bool
+    isShown (_key, (Edged.Node (c', _coords) _subtree)) = isJust c'
+
+    rootMeta :: ETree k (v, Metadata) -> Metadata
+    rootMeta (Edged.Node (_, meta) _) = meta
 
 {-------------------------------------------------------------------------------
   Parser for Hide
@@ -137,4 +146,4 @@ parseHideNode = do
     Parsec.string ","
     x <- Parsec.many1 Parsec.digit
     Parsec.string ")"
-    return $ HideNode (read y) (read x)
+    return $ HideNode $ Coords (read y) (read x)

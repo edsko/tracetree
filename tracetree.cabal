@@ -23,8 +23,8 @@ library
                        Debug.Trace.Tree.Generic
                        Debug.Trace.Tree.Rose
                        Debug.Trace.Tree.Simple
-  -- We need ghc 7.10, but I don't know how to specify that other through
-  -- the version of base
+  -- We need ghc 7.10 (using bidrectional pattern synonyms),
+  -- but I don't know how to specify that other through the version of base
   build-depends:       base         >= 4.8 && < 5,
                        bifunctors   >= 4.2 && < 4.3,
                        containers   >= 0.5 && < 0.6,
@@ -38,8 +38,8 @@ library
                        FlexibleContexts
                        FlexibleInstances
                        NoMonomorphismRestriction
-                       PatternSynonyms
                        ParallelListComp
+                       PatternSynonyms
                        RankNTypes
                        RecordWildCards
                        ScopedTypeVariables
@@ -61,14 +61,10 @@ executable ttrender
                        optparse-applicative >= 0.11 && < 0.12,
                        regex-posix          >= 0.95 && < 0.96,
                        parsec               >= 3.1  && < 3.2,
-                       -- haven't specified version ranges for diagrams yet
-                       -- because the official releases on Hackage don't yet
-                       -- support 7.10 and I don't know if they will bumb the
-                       -- version numbers once they release
-                       diagrams-cairo,
-                       diagrams-lib,
-                       diagrams-contrib,
-                       SVGFonts,
+                       diagrams-cairo       >= 1.3  && < 1.4,
+                       diagrams-lib         >= 1.3  && < 1.4,
+                       diagrams-contrib     >= 1.3  && < 1.4,
+                       SVGFonts             >= 1.5  && < 1.6,
                        -- whatever version we use above
                        tracetree
   else
@@ -76,7 +72,8 @@ executable ttrender
 
   hs-source-dirs:      ttrender
   default-language:    Haskell2010
-  default-extensions:  FlexibleContexts
+  default-extensions:  BangPatterns
+                       FlexibleContexts
                        NoMonomorphismRestriction
                        PatternSynonyms
                        RecordWildCards

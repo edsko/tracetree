@@ -3,9 +3,10 @@ module Debug.Trace.Tree.Render.Edged (renderTree) where
 import Data.Bifunctor
 import Data.Maybe (fromMaybe)
 import Diagrams.Backend.Cairo (B)
-import Diagrams.Prelude
-import Diagrams.TwoD.Layout.Tree hiding (renderTree)
+import Diagrams.Prelude hiding (coords)
+import Diagrams.TwoD.Layout.Tree (SymmLayoutOpts)
 import Graphics.SVGFonts
+import qualified Diagrams.TwoD.Layout.Tree as Diagrams.Tree
 
 import Debug.Trace.Tree.Edged
 import Debug.Trace.Tree.Render.Constants
@@ -14,74 +15,86 @@ import Debug.Trace.Tree.Render.Constants
   Main rendering algorithm
 -------------------------------------------------------------------------------}
 
+-- | Node IDs allocated by 'Diagrams.Tree.label'
+type PID = Int
+
 renderTree :: forall k v.
               (v -> v -> k -> (Diagram B, ArrowOpts Double))
            -> (v -> Diagram B)
-           -> Bool                    -- ^ Show coordinates?
-           -> ETree k (v, (Int, Int)) -- ^ Tree with coordinates marked
+           -> Bool                  -- ^ Show coordinates?
+           -> ETree k (v, Metadata) -- ^ Tree with metadata
            -> Diagram B
 renderTree drK' drV' showCoords t =
-    addArrows (arrows positioned) nodes
+    addArrows (arrows positioned) (nodes positioned)
   where
-    drK :: (v, (Int, Int)) -> (v, (Int, Int)) -> k -> (Diagram B, ArrowOpts Double)
-    drK (v, _) (v', _) k = drK' v v' k
+    -- Step 1. Render the individual tree nodes and the annotations on the edges
+    drawn :: ETree (Diagram B, ArrowOpts Double) (Diagram B, Metadata)
+    drawn = second drV . mapEdges drK $ t
+      where
+        drK :: (v, meta) -> (v, meta) -> k -> (Diagram B, ArrowOpts Double)
+        drK (v, _) (v', _) k = drK' v v' k
 
-    drV :: (v, (Int, Int)) -> Diagram B
-    drV (v, (y, x)) | showCoords = renderCoords (y, x) <> drV' v
-                    | otherwise  = drV' v
+        drV :: (v, Metadata) -> (Diagram B, Metadata)
+        drV (v, meta) =
+          let rendered | showCoords = drV' v <> renderCoords (coords meta)
+                       | otherwise  = drV' v
+          in (rendered, meta)
 
-    nodes :: Diagram B
-    nodes = foldMap fst positioned
+    -- Step 2. Assign IDs to all nodes and pair each node with its ID
+    labelled :: ETree (Diagram B, ArrowOpts Double) (Diagram B, Metadata, PID)
+    labelled = fmap (\((d, meta), n) -> (d # named n, meta, n))
+             $ Diagrams.Tree.label drawn -- pair with unique IDs
 
-    positioned :: ETree (Diagram B, ArrowOpts Double) (Diagram B, Int)
-    positioned = fmap (\((d, n), p) -> (d # moveTo p, n))
+    -- Step 3. Compute tree layout and move all nodes to their final location
+    positioned :: ETree (Diagram B, ArrowOpts Double) (Diagram B, Metadata, PID)
+    positioned = fmap (\((d, meta, n), p) -> (d # moveTo p, meta, n))
                $ symmLayout'' symmOpts (mempty, with)
                $ labelled
 
-    labelled :: ETree (Diagram B, ArrowOpts Double) (Diagram B, Int)
-    labelled = fmap (\(d, n) -> (d # named n, n)) $ label drawn
+    -- Step 4. Extract nodes from the positioned tree
+    --(Just extract all nodes and mappend them all together)
+    nodes :: ETree a (Diagram B, meta, pid) -> Diagram B
+    nodes = foldMap $ \(node, _meta, _n) -> node
 
-    drawn :: ETree (Diagram B, ArrowOpts Double) (Diagram B)
-    drawn = second drV . mapEdges drK $ t
-
-    arrows :: forall a. ETree (Diagram B, ArrowOpts Double) (a, Int) -> Arrows
-    arrows = mconcat . keys . mapEdges aux . markFirstChild
+    -- Step 5. Extract arrows from the positioned tree
+    arrows :: ETree (Diagram B, ArrowOpts Double) (a, Metadata, PID) -> Arrows
+    arrows = mconcat . keys . mapEdges aux
       where
-        aux :: ((a, Int), Bool) -> ((a, Int), Bool)
+        aux :: (a, Metadata, PID) -> (a, Metadata, PID)
             -> (Diagram B, ArrowOpts Double) -> Arrows
-        aux ((_, n), _parentIsFirst) ((_, n'), childIsFirst) (lbl, arrOpts) =
-          connectLabelled arrOpts lbl childIsFirst n n'
+        aux (_, _parent, n) (_, child, n') (lbl, arrOpts) =
+          connectLabelled arrOpts lbl (isFirstChild child) n n'
 
-    symmOpts :: SymmLayoutOpts Double ((Diagram B, ArrowOpts Double), (Diagram B, Int))
-    symmOpts = with & slWidth  .~ computeWidth
-                    & slHeight .~ computeHeight
-                    & slHSep   .~ constTreeHSep
-                    & slVSep   .~ constTreeVSep
+    symmOpts :: SymmLayoutOpts Double ((Diagram B, ArrowOpts Double), (Diagram B, Metadata, PID))
+    symmOpts = with & Diagrams.Tree.slWidth  .~ computeWidth
+                    & Diagrams.Tree.slHeight .~ computeHeight
+                    & Diagrams.Tree.slHSep   .~ constTreeHSep
+                    & Diagrams.Tree.slVSep   .~ constTreeVSep
       where
         -- We don't know where the label will be placed. In the worst case,
         -- the label is positioned to start or end precisely at the center
         -- of the node, so we allow for the worst case here.
-        computeWidth ((edge, _opts), (node, _)) =
+        computeWidth ((edge, _opts), (node, _meta, _n)) =
           let (edgeMinX, edgeMaxX) = fromMaybe (0,0) $ extentX edge
               (nodeMinX, nodeMaxX) = fromMaybe (0,0) $ extentX node
               edgeWidth = edgeMaxX - edgeMinX
           in (negate edgeWidth `min` nodeMinX, edgeWidth `max` nodeMaxX)
 
         -- For the height we ignore the edge labels
-        computeHeight ((_edge, _opts), (node, _)) =
+        computeHeight ((_edge, _opts), (node, _meta, _n)) =
           fromMaybe (0,0) $ extentY node
 
 -- | Lift standard layout algorithm to edged trees
 symmLayout'' :: SymmLayoutOpts Double (k, v) -> k -> ETree k v -> ETree k (v, P2 Double)
-symmLayout'' opts = liftTree (symmLayout' opts)
+symmLayout'' opts = liftTree (Diagrams.Tree.symmLayout' opts)
 
 -- | Render coordinates
 --
 -- Note that these coordinates are not expected ever in the final diagram; they
 -- are used only during diagram construction. So we don't need to worry too much
 -- about how exactly they look.
-renderCoords :: (Int, Int) -> Diagram B
-renderCoords (y, x) = stroke (textSVG (show (y, x)) constCoordsOverlay)
+renderCoords :: Coords -> Diagram B
+renderCoords coords = stroke (textSVG (show coords) constCoordsOverlay)
                     # fc red
                     # lw (global 0.5)
 

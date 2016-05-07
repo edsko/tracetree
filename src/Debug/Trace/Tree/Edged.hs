@@ -13,10 +13,12 @@ module Debug.Trace.Tree.Edged (
     -- * Hiding nodes
   , Hide(..)
   , hideNodes
-    -- * Additional operations
-  , numberLevels
-  , markFirstChild
-  , markCoords
+    -- * Annotation
+  , Depth
+  , Offset
+  , Coords(..)
+  , Metadata(..)
+  , annotate
     -- * Interaction between ETree and Tree
   , pushEdges
   , pullEdges
@@ -30,7 +32,8 @@ import Data.Tree (Tree)
 import qualified Data.Tree as Tree
 
 import Debug.Trace.Tree.Assoc
-import qualified Debug.Trace.Tree.Rose as Tree
+import Debug.Trace.Tree.Rose (Depth, Offset, Coords(..), Metadata(..))
+import qualified Debug.Trace.Tree.Rose as Rose
 
 {-------------------------------------------------------------------------------
   Main datatype
@@ -79,56 +82,35 @@ mapEdges f (Node v (Assoc ts)) = Node v (Assoc (map go ts))
   Additional operations
 -------------------------------------------------------------------------------}
 
+annotate :: ETree k v -> ETree k (v, Metadata)
+annotate = liftTree' Rose.annotate
+
+{-------------------------------------------------------------------------------
+  Hiding nodes
+-------------------------------------------------------------------------------}
+
 -- | Specification of nodes to hide
 data Hide =
     -- | Hide the node at the specified coordinates
-    HideNode Int Int
+    HideNode Coords
 
 instance Show Hide where
-    show (HideNode y x) = "node(" ++ show y ++ "," ++ show x ++ ")"
+    show (HideNode Coords{..}) = "node(" ++ show depth ++ "," ++ show offset ++ ")"
 
 -- | Check if a certain node should be hidden
-isHidden :: [Hide] -> (Int, Int) -> Bool
-isHidden spec (y, x) = any hides spec
+isHidden :: [Hide] -> Metadata -> Bool
+isHidden spec Metadata{..} = any hides spec
   where
     hides :: Hide -> Bool
-    hides (HideNode y' x') = y == y' && x == x'
+    hides (HideNode coords') = coords == coords'
 
-hideNodes :: forall k v. [Hide] -> ETree k (v, (Int, Int)) -> ETree k (Maybe v, (Int, Int))
+hideNodes :: forall k v. [Hide] -> ETree k (v, Metadata) -> ETree k (Maybe v, Metadata)
 hideNodes spec = go
   where
-    go :: ETree k (v, (Int, Int)) -> ETree k (Maybe v, (Int, Int))
-    go (Node (v, (y, x)) (Assoc ts))
-      | isHidden spec (y, x) = Node (Nothing, (y, x)) $ Assoc []
-      | otherwise            = Node (Just v,  (y, x)) $ Assoc (map (second go) ts)
-
-  {-
-    go :: v -> (Int, Int) -> Maybe v
-    go v (y, x) | isHidden spec (y, x) = Nothing
-                | otherwise            = Just v
--}
-
-{-
--- | Limit the breath of a tree given a list of maximum breaths per level
-limitBreath :: [Int] -> ETree k v -> ETree k (Maybe v)
-limitBreath limits = go (limits ++ repeat maxBound) . numberLevels
-  where
-    go :: [Int] -> ETree k (v, Int) -> ETree k (Maybe v)
-    go [] _ = error "the impossible happened"
-    go (limit:limits') (Node (v, i) (Assoc ts))
-      | i >= limit = Node Nothing (Assoc [])
-      | otherwise  = Node (Just v) (Assoc (map (second (go limits')) ts))
--}
-
--- | Mark each node with its (y, x) coordinate
-markCoords :: ETree k v -> ETree k (v, (Int, Int))
-markCoords = liftTree' Tree.markCoords
-
-numberLevels :: ETree k v -> ETree k (v, Int)
-numberLevels = liftTree' Tree.numberLevels
-
-markFirstChild :: ETree k v -> ETree k (v, Bool)
-markFirstChild = liftTree' Tree.markFirstChild
+    go :: ETree k (v, Metadata) -> ETree k (Maybe v, Metadata)
+    go (Node (v, meta) (Assoc ts))
+      | isHidden spec meta = Node (Nothing , meta) $ Assoc []
+      | otherwise          = Node (Just v  , meta) $ Assoc (map (second go) ts)
 
 {-------------------------------------------------------------------------------
   Interaction between ETree and Tree
