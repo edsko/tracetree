@@ -12,6 +12,13 @@ description:         The tracetree library can be used to conveniently write
                      these JSON trees as .svg or .png files, and provides
                      various command line flags for controlling the layout of
                      the tree (colour, orientation, hiding nodes, etc.).
+                     .
+                     The tracetree library and ttrender executable are
+                     independent components; if you don't want to add the
+                     dependency on tracetree to your project, you can just
+                     generate the .JSON files directly in your code; the format
+                     is not complicated (indeed, you can create them by hand
+                     or post-process previously exported .JSON files). 
 license:             BSD3
 license-file:        LICENSE
 author:              Edsko de Vries
