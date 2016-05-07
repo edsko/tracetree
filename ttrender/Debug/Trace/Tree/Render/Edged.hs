@@ -3,7 +3,7 @@ module Debug.Trace.Tree.Render.Edged (renderTree) where
 import Data.Bifunctor
 import Data.Maybe (fromMaybe)
 import Diagrams.Backend.Cairo (B)
-import Diagrams.Prelude hiding (coords)
+import Diagrams.Prelude hiding (coords, offset)
 import Diagrams.TwoD.Layout.Tree (SymmLayoutOpts)
 import Graphics.SVGFonts
 import qualified Diagrams.TwoD.Layout.Tree as Diagrams.Tree
@@ -94,9 +94,10 @@ symmLayout'' opts = liftTree (Diagrams.Tree.symmLayout' opts)
 -- are used only during diagram construction. So we don't need to worry too much
 -- about how exactly they look.
 renderCoords :: Coords -> Diagram B
-renderCoords coords = stroke (textSVG (show coords) constCoordsOverlay)
-                    # fc red
-                    # lw (global 0.5)
+renderCoords Coords{..} =
+      stroke (textSVG (show (depth, offset)) constCoordsOverlay)
+    # fc red
+    # lw (global 0.5)
 
 {-------------------------------------------------------------------------------
   Diagrams auxiliary: labelled arrows
