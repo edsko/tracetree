@@ -53,6 +53,7 @@ executable ttrender
   other-modules:       Debug.Trace.Tree.Render.Edged
                        Debug.Trace.Tree.Render.Options
                        Debug.Trace.Tree.Render.Simple
+                       Debug.Trace.Tree.Render.Constants
 
   if flag(ttrender)
     build-depends:     base                 >= 4.8  && < 5,
