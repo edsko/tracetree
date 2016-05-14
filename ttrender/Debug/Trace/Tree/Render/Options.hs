@@ -20,7 +20,7 @@ import qualified Debug.Trace.Tree.Edged  as Edged
 import qualified Debug.Trace.Tree.Simple as Simple
 
 data RenderOptions = RenderOptions {
-    renderHideNodes    :: [Hide]
+    renderHideNodes    :: [Hide String]
   , renderMerge        :: [String]
   , renderVertical     :: [String]
   , renderColours      :: [(String, Colour Double)]
@@ -68,7 +68,7 @@ instance Parseable RenderOptions where
            ])
     <*> ( argument str (metavar "JSON") )
 
-readHide :: ReadM Hide
+readHide :: ReadM (Hide String)
 readHide = do
     arg <- str
     case Parsec.parse parseHide "HIDE" arg of
@@ -136,10 +136,10 @@ applyMaxNotShown n = \(Edged.Node c (Assoc ts)) ->
   Parser for Hide
 -------------------------------------------------------------------------------}
 
-parseHide :: Parsec.Parser Hide
+parseHide :: Parsec.Parser (Hide String)
 parseHide = parseHideNode
 
-parseHideNode :: Parsec.Parser Hide
+parseHideNode :: Parsec.Parser (Hide String)
 parseHideNode = do
     Parsec.string "node("
     y <- Parsec.many1 Parsec.digit

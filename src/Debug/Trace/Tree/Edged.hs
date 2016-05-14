@@ -11,6 +11,8 @@ module Debug.Trace.Tree.Edged (
   , keys
   , mapEdges
     -- * Hiding nodes
+  , MatchAgainst(..)
+  , Match(..)
   , Hide(..)
   , hideNodes
     -- * Annotation
@@ -89,28 +91,37 @@ annotate = liftTree' Rose.annotate
   Hiding nodes
 -------------------------------------------------------------------------------}
 
+class MatchAgainst v m where
+    matchAgainst :: v -> m -> Bool
+
+-- | Abstract definition of something we can match against a value
+data Match v = forall m. (MatchAgainst v m, Show m) => Match m
+
 -- | Specification of nodes to hide
-data Hide =
+data Hide v =
     -- | Hide the node at the specified coordinates
     HideNode Coords
+  | HideMatch (Match v)
 
-instance Show Hide where
+instance Show (Hide v) where
     show (HideNode Coords{..}) = "node(" ++ show depth ++ "," ++ show offset ++ ")"
+    show (HideMatch (Match m)) = "match(" ++ show m ++ ")"
 
 -- | Check if a certain node should be hidden
-isHidden :: [Hide] -> Metadata -> Bool
-isHidden spec Metadata{..} = any hides spec
+isHidden :: forall v. [Hide v] -> (v, Metadata) -> Bool
+isHidden spec (v, Metadata{..}) = any hides spec
   where
-    hides :: Hide -> Bool
-    hides (HideNode coords') = coords == coords'
+    hides :: Hide v -> Bool
+    hides (HideNode coords')    = coords == coords'
+    hides (HideMatch (Match m)) = v `matchAgainst` m
 
-hideNodes :: forall k v. [Hide] -> ETree k (v, Metadata) -> ETree k (Maybe v, Metadata)
+hideNodes :: forall k v. [Hide v] -> ETree k (v, Metadata) -> ETree k (Maybe v, Metadata)
 hideNodes spec = go
   where
     go :: ETree k (v, Metadata) -> ETree k (Maybe v, Metadata)
     go (Node (v, meta) (Assoc ts))
-      | isHidden spec meta = Node (Nothing , meta) $ Assoc []
-      | otherwise          = Node (Just v  , meta) $ Assoc (map (second go) ts)
+      | isHidden spec (v, meta) = Node (Nothing, meta) $ Assoc []
+      | otherwise = Node (Just v, meta) $ Assoc (map (second go) ts)
 
 {-------------------------------------------------------------------------------
   Interaction between ETree and Tree

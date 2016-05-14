@@ -56,8 +56,10 @@ library
   default-language:    Haskell2010
   ghc-options:         -Wall
   default-extensions:  DefaultSignatures
+                       ExistentialQuantification
                        FlexibleContexts
                        FlexibleInstances
+                       MultiParamTypeClasses
                        NoMonomorphismRestriction
                        ParallelListComp
                        PatternSynonyms
