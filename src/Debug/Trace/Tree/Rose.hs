@@ -5,6 +5,7 @@ module Debug.Trace.Tree.Rose (
   , Offset
   , Coords(..)
   , Metadata(..)
+  , isFirstChild
   , annotate
   ) where
 
@@ -68,11 +69,14 @@ data Coords = Coords {
 
 -- | Metadata of a node in the tree
 data Metadata = Metadata {
-      isSpine      :: Bool
-    , isFirstChild :: Bool
-    , coords       :: Coords
+      isSpine  :: Bool
+    , nthChild :: Int
+    , coords   :: Coords
     }
   deriving (Show, Eq, Ord)
+
+isFirstChild :: Metadata -> Bool
+isFirstChild Metadata{..} = nthChild == 0
 
 {-------------------------------------------------------------------------------
   Auxiliary: operations on trees
@@ -87,12 +91,11 @@ markSpine = go True
                            $ map (uncurry go) $ zip (isSpine : repeat False) ts
 
 -- | Mark the first child of each node
-markFirstChild :: Tree a -> Tree (a, Bool)
-markFirstChild = go True
+markNthChild :: Tree a -> Tree (a, Int)
+markNthChild = go 0
   where
-    go :: Bool -> Tree a -> Tree (a, Bool)
-    go isFirst (Node a ts) = Node (a, isFirst)
-                           $ map (uncurry go) $ zip (True : repeat False) ts
+    go :: Int -> Tree a -> Tree (a, Int)
+    go nth (Node a ts) = Node (a, nth) $ zipWith go [0..] ts
 
 -- | Mark each node with its depth in the tree
 markDepth :: Tree a -> Tree (a, Depth)
@@ -117,11 +120,11 @@ markCoords t = evalState (unfoldTreeM_BF go (markDepth t)) (Coords 0 0)
 annotate :: Tree a -> Tree (a, Metadata)
 annotate = fmap aux
          . markCoords
-         . markFirstChild
+         . markNthChild
          . markSpine
   where
-    aux :: (((a, Bool), Bool), Coords) -> (a, Metadata)
-    aux (((a, isSpine), isFirstChild), coords) = (a, Metadata{..})
+    aux :: (((a, Bool), Int), Coords) -> (a, Metadata)
+    aux (((a, isSpine), nthChild), coords) = (a, Metadata{..})
 
 {-------------------------------------------------------------------------------
   Debugging

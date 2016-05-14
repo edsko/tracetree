@@ -98,6 +98,8 @@ executable ttrender
   default-language:    Haskell2010
   default-extensions:  BangPatterns
                        FlexibleContexts
+                       FlexibleInstances
+                       MultiParamTypeClasses
                        NoMonomorphismRestriction
                        PatternSynonyms
                        RecordWildCards

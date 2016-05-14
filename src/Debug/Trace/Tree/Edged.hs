@@ -12,7 +12,7 @@ module Debug.Trace.Tree.Edged (
   , mapEdges
     -- * Hiding nodes
   , MatchAgainst(..)
-  , Match(..)
+  , NodeSpec(..)
   , Hide(..)
   , hideNodes
     -- * Annotation
@@ -20,6 +20,7 @@ module Debug.Trace.Tree.Edged (
   , Offset
   , Coords(..)
   , Metadata(..)
+  , Rose.isFirstChild
   , annotate
     -- * Interaction between ETree and Tree
   , pushEdges
@@ -91,37 +92,59 @@ annotate = liftTree' Rose.annotate
   Hiding nodes
 -------------------------------------------------------------------------------}
 
+-- | Abstract definition of something we can match against a value
 class MatchAgainst v m where
     matchAgainst :: v -> m -> Bool
 
--- | Abstract definition of something we can match against a value
-data Match v = forall m. (MatchAgainst v m, Show m) => Match m
+-- | Various ways we can specify a node
+data NodeSpec v =
+    -- | Node at the specified coordinates
+    NodeCoords Coords
+
+    -- | Match the value of the node
+  | forall m. (MatchAgainst v m, Show m) => NodeMatch m
+
+matchSpec :: NodeSpec v -> (v, Metadata) -> Bool
+matchSpec (NodeCoords c) (_, Metadata{..}) = c == coords
+matchSpec (NodeMatch  m) (v, _)            = v `matchAgainst` m
 
 -- | Specification of nodes to hide
 data Hide v =
-    -- | Hide the node at the specified coordinates
-    HideNode Coords
-  | HideMatch (Match v)
+    -- | Hide the specified node
+    HideNode (NodeSpec v)
+
+    -- | Match the number of children of the specified node
+  | HideMax Int (NodeSpec v)
+
+instance Show (NodeSpec v) where
+    show (NodeCoords Coords{..}) = show depth ++ "," ++ show offset
+    show (NodeMatch  m)          = show m
 
 instance Show (Hide v) where
-    show (HideNode Coords{..}) = "node(" ++ show depth ++ "," ++ show offset ++ ")"
-    show (HideMatch (Match m)) = "match(" ++ show m ++ ")"
+    show (HideNode  spec) = "node(" ++ show spec ++ ")"
+    show (HideMax n spec) = "max(" ++ show n ++ "," ++ show spec ++ ")"
 
 -- | Check if a certain node should be hidden
-isHidden :: forall v. [Hide v] -> (v, Metadata) -> Bool
-isHidden spec (v, Metadata{..}) = any hides spec
+isHidden :: forall v.
+            [Hide v]            -- ^ User-specified rules for hiding nodes
+         -> Maybe (v, Metadata) -- ^ Parent node
+         -> (v, Metadata)       -- ^ This node
+         -> Bool
+isHidden rules mParent this@(_, Metadata{..}) =
+    any (hides mParent) rules
   where
-    hides :: Hide v -> Bool
-    hides (HideNode coords')    = coords == coords'
-    hides (HideMatch (Match m)) = v `matchAgainst` m
+    hides :: Maybe (v, Metadata) -> Hide v -> Bool
+    hides _             (HideNode  spec) = matchSpec spec this
+    hides (Just parent) (HideMax n spec) = matchSpec spec parent && nthChild >= n
+    hides Nothing       (HideMax _ _)    = False
 
 hideNodes :: forall k v. [Hide v] -> ETree k (v, Metadata) -> ETree k (Maybe v, Metadata)
-hideNodes spec = go
+hideNodes spec = go Nothing
   where
-    go :: ETree k (v, Metadata) -> ETree k (Maybe v, Metadata)
-    go (Node (v, meta) (Assoc ts))
-      | isHidden spec (v, meta) = Node (Nothing, meta) $ Assoc []
-      | otherwise = Node (Just v, meta) $ Assoc (map (second go) ts)
+    go :: Maybe (v, Metadata) -> ETree k (v, Metadata) -> ETree k (Maybe v, Metadata)
+    go mParent (Node (v, meta) (Assoc ts))
+      | isHidden spec mParent (v, meta) = Node (Nothing, meta) $ Assoc []
+      | otherwise = Node (Just v, meta) $ Assoc (map (second (go (Just (v, meta)))) ts)
 
 {-------------------------------------------------------------------------------
   Interaction between ETree and Tree

@@ -1,6 +1,6 @@
 -- | Render simple trees
 {-# OPTIONS_GHC -fno-warn-unused-do-bind #-}
-module Debug.Trace.Tree.Render.Options (RenderOptions(..), applyOptions) where
+module Debug.Trace.Tree.Render.Options where -- (RenderOptions(..), applyOptions) where
 
 import Data.Bifunctor
 import Data.Colour (Colour)
@@ -10,19 +10,35 @@ import Data.List (groupBy)
 import Data.Function (on)
 import Diagrams.Backend.CmdLine (Parseable(..))
 import Options.Applicative
+import Text.Regex.Posix ((=~))
 import qualified Text.Parsec        as Parsec
 import qualified Text.Parsec.String as Parsec
 
 import Debug.Trace.Tree.Simple (SimpleTree, simpleETree)
-import Debug.Trace.Tree.Edged (ETree, Hide(..), Metadata, Coords(..))
+import Debug.Trace.Tree.Edged
 import Debug.Trace.Tree.Assoc (Assoc(..))
-import qualified Debug.Trace.Tree.Edged  as Edged
 import qualified Debug.Trace.Tree.Simple as Simple
+
+{-------------------------------------------------------------------------------
+  Matching nodes
+-------------------------------------------------------------------------------}
+
+data RegExp = RegExp String
+
+instance Show RegExp where
+    show (RegExp regExp) = regExp
+    
+instance MatchAgainst String RegExp where
+    s `matchAgainst` (RegExp regExp) = s =~ regExp
+
+{-------------------------------------------------------------------------------
+  Command line args proper
+-------------------------------------------------------------------------------}
 
 data RenderOptions = RenderOptions {
     renderHideNodes    :: [Hide String]
   , renderMerge        :: [String]
-  , renderVertical     :: [String]
+  , renderVertical     :: [RegExp]
   , renderColours      :: [(String, Colour Double)]
   , renderMaxNotShown  :: Int
   , renderDelChildren  :: [String]
@@ -32,17 +48,24 @@ data RenderOptions = RenderOptions {
 
 instance Parseable RenderOptions where
   parser = RenderOptions
-    <$> ( many (option readHide $ mconcat [
+    <$> ( many (option (readParsec parseHide) $ mconcat [
             long "hide"
           , metavar "HIDE"
-          , help "Hide certain nodes in the tree; arrows to these nodes are shown as dangling (modulo the max-not-shown option). Valid syntax for the argument is: \"node(y,x)\": Hide the node at the specified level. Can be used multiple times."
+          , help $ unlines [
+                "Hide certain nodes in the tree; arrows to these nodes are shown as dangling (modulo the max-not-shown option)."
+              , "Can be used multiple times."
+              , "Valid syntax for the argument is: "
+              , "  \"node(y,x)\": Hide the node at the specified coordinates."
+              , "  \"match(REGEXP)\": Hide any node matching the specified REGEXP."
+              , "  \"max(REGEXP,INT)\": Limit the number of children of any node matching REGEXP to INT."
+              ]
           ]))
     <*> ( many (strOption $ mconcat [
             long "merge"
           , metavar "C"
           , help "Collapse any tree of shape (C' .. (C args) ..) to (C' .. args ..). Can be used multiple times."
           ]))
-    <*> ( many (strOption $ mconcat [
+    <*> ( many (option (readParsec parseRegExp) $ mconcat [
             long "vertical"
           , metavar "REGEXP"
           , help "Show any node matching the specified regular expression vertically. Can be used multiple times."
@@ -68,12 +91,12 @@ instance Parseable RenderOptions where
            ])
     <*> ( argument str (metavar "JSON") )
 
-readHide :: ReadM (Hide String)
-readHide = do
+readParsec :: Parsec.Parser a -> ReadM a
+readParsec p = do
     arg <- str
-    case Parsec.parse parseHide "HIDE" arg of
-      Left  err  -> fail (show err)
-      Right hide -> return hide
+    case Parsec.parse p "command line argument" arg of
+      Left  err -> fail (show err)
+      Right a   -> return a
 
 readColourAssignment :: ReadM (String, Colour Double)
 readColourAssignment = do
@@ -85,8 +108,8 @@ readColourAssignment = do
 applyOptions :: RenderOptions -> SimpleTree -> ETree String (Maybe String, Metadata)
 applyOptions RenderOptions{..} =
       applyMaxNotShown renderMaxNotShown
-    . Edged.hideNodes renderHideNodes
-    . Edged.annotate
+    . hideNodes renderHideNodes
+    . annotate
     . simpleETree
     . applyMerge renderMerge
     . applyDelChildren renderDelChildren
@@ -110,9 +133,9 @@ applyDelChildren toHide = go
     go _ = error "inaccessible"
 
 applyMaxNotShown :: Int -> ETree String (Maybe String, Metadata) -> ETree String (Maybe String, Metadata)
-applyMaxNotShown n = \(Edged.Node c (Assoc ts)) ->
+applyMaxNotShown n = \(Node c (Assoc ts)) ->
     let culled = concatMap aux (groupBy ((==) `on` isShown) ts)
-    in Edged.Node c $ fmap (applyMaxNotShown n) (Assoc culled)
+    in Node c $ fmap (applyMaxNotShown n) (Assoc culled)
   where
     -- Replace each group of hidden nodes with an ellipsis (if larger than n)
     -- We re-use the node metadata of the first node in the group
@@ -124,26 +147,60 @@ applyMaxNotShown n = \(Edged.Node c (Assoc ts)) ->
       | otherwise                        = ts
 
     ellipsis :: Metadata -> (String, ETree String (Maybe String, Metadata))
-    ellipsis meta = ("...", Edged.Node (Nothing, meta) (Assoc []))
+    ellipsis meta = ("...", Node (Nothing, meta) (Assoc []))
 
     isShown :: (String, ETree String (Maybe String, meta)) -> Bool
-    isShown (_key, (Edged.Node (c', _coords) _subtree)) = isJust c'
+    isShown (_key, (Node (c', _coords) _subtree)) = isJust c'
 
     rootMeta :: ETree k (v, Metadata) -> Metadata
-    rootMeta (Edged.Node (_, meta) _) = meta
+    rootMeta (Node (_, meta) _) = meta
 
 {-------------------------------------------------------------------------------
   Parser for Hide
 -------------------------------------------------------------------------------}
 
 parseHide :: Parsec.Parser (Hide String)
-parseHide = parseHideNode
+parseHide =
+      (do Parsec.try $ Parsec.string "node("
+          s <- parseNodeSpec
+          Parsec.string ")"
+          return $ HideNode s)
+  <|> (do Parsec.try $ Parsec.string "max("
+          n <- parseInt
+          Parsec.string ","
+          s <- parseNodeSpec
+          Parsec.string ")"
+          return $ HideMax n s)
 
-parseHideNode :: Parsec.Parser (Hide String)
-parseHideNode = do
-    Parsec.string "node("
-    y <- Parsec.many1 Parsec.digit
-    Parsec.string ","
-    x <- Parsec.many1 Parsec.digit
-    Parsec.string ")"
-    return $ HideNode $ Coords (read y) (read x)
+parseNodeSpec :: Parsec.Parser (NodeSpec String)
+parseNodeSpec =
+    Parsec.try (do y <- parseInt
+                   Parsec.string ","
+                   x <- parseInt
+                   return $ NodeCoords $ Coords y x)
+  <|>
+    (NodeMatch <$> parseRegExp)
+
+parseInt :: Parsec.Parser Int
+parseInt = read <$> Parsec.many1 Parsec.digit
+
+-- | Regular expression delimited by an unmatched closing parenthesis
+parseRegExp :: Parsec.Parser RegExp
+parseRegExp = RegExp <$> matchBrackets
+
+{-------------------------------------------------------------------------------
+  Auxiliary parsec
+-------------------------------------------------------------------------------}
+
+-- | Match as much as possible, until we see an unexpected closing parenthesis
+matchBrackets :: Parsec.Parser String
+matchBrackets = go 0
+  where
+    go :: Int -> Parsec.Parser String
+    go nestingDepth = (do
+      x  <- if nestingDepth > 0 then Parsec.anyChar else Parsec.noneOf ")"
+      let nestingDepth' | x == '('  = nestingDepth + 1
+                        | x == ')'  = nestingDepth - 1
+                        | otherwise = nestingDepth
+      xs <- go nestingDepth'
+      return (x:xs)) <|> return ""

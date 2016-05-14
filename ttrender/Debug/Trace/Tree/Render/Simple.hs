@@ -5,8 +5,8 @@ import Diagrams.Prelude
 import Diagrams.Backend.Cairo (B)
 import Graphics.SVGFonts
 import Graphics.SVGFonts.ReadFont (PreparedFont)
-import Text.Regex.Posix ((=~))
 
+import Debug.Trace.Tree.Edged (matchAgainst)
 import Debug.Trace.Tree.Simple
 import Debug.Trace.Tree.Render.Options
 import Debug.Trace.Tree.Render.Constants
@@ -26,7 +26,7 @@ drawNode RenderOptions{..} node =
     makeBox Nothing    = mempty
 
     maybeVertical Nothing    = id
-    maybeVertical (Just str) = if any (\regexp -> str =~ regexp) renderVertical
+    maybeVertical (Just str) = if any (matchAgainst str) renderVertical
                                  then rotateBy (1/4)
                                  else id
 
