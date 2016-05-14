@@ -1,5 +1,5 @@
 name:                tracetree
-version:             0.1.0.0
+version:             0.1.0.1
 synopsis:            Visualize Haskell data structures as edge-labeled trees
 description:         The tracetree library can be used to conveniently write
                      Haskell data structures as trees represented as JSON
@@ -28,6 +28,9 @@ category:            Development
 build-type:          Simple
 -- extra-source-files:
 cabal-version:       >=1.10
+
+extra-source-files:
+  ChangeLog.md
 
 source-repository head
   type: git
