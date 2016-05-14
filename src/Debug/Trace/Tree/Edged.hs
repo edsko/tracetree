@@ -113,8 +113,8 @@ data Hide v =
     -- | Hide the specified node
     HideNode (NodeSpec v)
 
-    -- | Match the number of children of the specified node
-  | HideMax Int (NodeSpec v)
+    -- | Limit the range of children of the specified node
+  | HideMax (Int, Int) (NodeSpec v)
 
 instance Show (NodeSpec v) where
     show (NodeCoords Coords{..}) = show depth ++ "," ++ show offset
@@ -135,8 +135,11 @@ isHidden rules mParent this@(_, Metadata{..}) =
   where
     hides :: Maybe (v, Metadata) -> Hide v -> Bool
     hides _             (HideNode  spec) = matchSpec spec this
-    hides (Just parent) (HideMax n spec) = matchSpec spec parent && nthChild >= n
+    hides (Just parent) (HideMax r spec) = matchSpec spec parent && not (inRange r nthChild)
     hides Nothing       (HideMax _ _)    = False
+
+    inRange :: (Int, Int) -> Int -> Bool
+    inRange (lo, hi) n = lo <= n && n <= hi
 
 hideNodes :: forall k v. [Hide v] -> ETree k (v, Metadata) -> ETree k (Maybe v, Metadata)
 hideNodes spec = go Nothing

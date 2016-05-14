@@ -27,7 +27,7 @@ data RegExp = RegExp String
 
 instance Show RegExp where
     show (RegExp regExp) = regExp
-    
+
 instance MatchAgainst String RegExp where
     s `matchAgainst` (RegExp regExp) = s =~ regExp
 
@@ -54,10 +54,16 @@ instance Parseable RenderOptions where
           , help $ unlines [
                 "Hide certain nodes in the tree; arrows to these nodes are shown as dangling (modulo the max-not-shown option)."
               , "Can be used multiple times."
+              , ""
               , "Valid syntax for the argument is: "
-              , "  \"node(y,x)\": Hide the node at the specified coordinates."
-              , "  \"match(REGEXP)\": Hide any node matching the specified REGEXP."
-              , "  \"max(REGEXP,INT)\": Limit the number of children of any node matching REGEXP to INT."
+              , "  \"node(SPEC)\": Hide all nodes matching SPEC."
+              , "  \"max(RANGE,SPEC)\": Only show the children in RANGE of nodes matching SPEC."
+              , ""
+              , "Where SPEC is: "
+              , "  \"y,x\": Node at specific coordinates"
+              , "  REGEXP: Any node matching REGEXP"
+              , ""
+              , "RANGE is n-m, n-, or -m"
               ]
           ]))
     <*> ( many (strOption $ mconcat [
@@ -166,11 +172,13 @@ parseHide =
           Parsec.string ")"
           return $ HideNode s)
   <|> (do Parsec.try $ Parsec.string "max("
-          n <- parseInt
+          lo <- parseInt
+          Parsec.string "-"
+          hi <- parseInt
           Parsec.string ","
           s <- parseNodeSpec
           Parsec.string ")"
-          return $ HideMax n s)
+          return $ HideMax (lo, hi) s)
 
 parseNodeSpec :: Parsec.Parser (NodeSpec String)
 parseNodeSpec =
