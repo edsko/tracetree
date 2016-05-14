@@ -36,7 +36,7 @@ renderTree drK' drV' showCoords t =
 
         drV :: (v, Metadata) -> (Diagram B, Metadata)
         drV (v, meta) =
-          let rendered | showCoords = drV' v <> renderCoords (coords meta)
+          let rendered | showCoords = renderCoords (coords meta) <> drV' v
                        | otherwise  = drV' v
           in (rendered, meta)
 
