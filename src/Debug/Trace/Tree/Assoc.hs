@@ -1,3 +1,5 @@
+{-# LANGUAGE CPP #-}
+
 -- | Association lists
 --
 -- Intended to be double imported:
@@ -37,6 +39,11 @@ instance Foldable (Assoc k) where
 
 instance Traversable (Assoc k) where
   traverse f = fmap (Assoc . getCompose) . traverse f . Compose . assocList
+
+#if MIN_VERSION_base(4,9,0)
+instance Semigroup (Assoc k v) where
+  (Assoc xs) <> (Assoc ys) = Assoc (xs `mappend` ys)  
+#endif
 
 instance Monoid (Assoc k v) where
   mempty = Assoc mempty

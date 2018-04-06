@@ -50,7 +50,7 @@ library
   -- We need ghc 7.10 (using bidrectional pattern synonyms),
   -- but I don't know how to specify that other through the version of base
   build-depends:       base         >= 4.8 && < 5,
-                       bifunctors   >= 4.2 && < 5.5,
+                       bifunctors   >= 4.2 && < 5.6,
                        containers   >= 0.5 && < 0.6,
                        json         >= 0.9 && < 0.10,
                        mtl          >= 2.2 && < 2.3,
@@ -72,7 +72,7 @@ library
                        TupleSections
                        TypeOperators
                        ViewPatterns
-  -- other-extensions:
+  other-extensions:    CPP
 
 executable ttrender
   main-is:             Main.hs
@@ -85,13 +85,13 @@ executable ttrender
     build-depends:     base                 >= 4.8  && < 5,
                        colour               >= 2.3  && < 2.4,
                        json                 >= 0.9  && < 0.10,
-                       optparse-applicative >= 0.11 && < 0.13,
+                       optparse-applicative >= 0.11 && < 0.15,
                        regex-posix          >= 0.95 && < 0.96,
                        parsec               >= 3.1  && < 3.2,
-                       diagrams-cairo       >= 1.3  && < 1.4,
-                       diagrams-lib         >= 1.3  && < 1.4,
-                       diagrams-contrib     >= 1.3  && < 1.4,
-                       SVGFonts             >= 1.5  && < 1.6,
+                       diagrams-cairo       >= 1.3  && < 1.5,
+                       diagrams-lib         >= 1.3  && < 1.5,
+                       diagrams-contrib     >= 1.3  && < 1.5,
+                       SVGFonts             >= 1.5  && < 1.7,
                        -- whatever version we use above
                        tracetree
   else
