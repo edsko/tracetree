@@ -1,0 +1,2 @@
+packages: .
+allow-newer: diagrams-cairo:base, SVGFonts:containers, SVGFonts:diagrams-core
