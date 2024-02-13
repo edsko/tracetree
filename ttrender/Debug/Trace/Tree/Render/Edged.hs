@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 module Debug.Trace.Tree.Render.Edged (renderTree) where
 
 import Data.Bifunctor
@@ -105,9 +106,18 @@ renderCoords Coords{..} =
 
 newtype Arrows = Arrows { addArrows :: Diagram B -> Diagram B }
 
+#if MIN_VERSION_base(4,9,0)
+instance Semigroup Arrows where
+  Arrows f <> Arrows g = Arrows (f . g)
+#endif
+
 instance Monoid Arrows where
   mempty = Arrows id
+#if MIN_VERSION_base(4,9,0)
+  mappend = (<>)
+#else
   Arrows f `mappend` Arrows g = Arrows (f . g)
+#endif
 
 -- based on 'connectOutside'
 connectLabelled :: ArrowOpts Double -> Diagram B -> Bool -> Int -> Int -> Arrows
